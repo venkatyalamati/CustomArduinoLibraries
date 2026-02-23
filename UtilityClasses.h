@@ -18,7 +18,7 @@ class Ticks // depends on Timer1 ISR
 {
   private:
     unsigned int _cnt, _cntMax;
-    bool _tickGenerated; bool _tickGeneratedLatch;
+    bool _tickGenerated;
 
   public:
     Ticks(unsigned long tikPeriodMilSec);
@@ -50,27 +50,26 @@ class Buzzer{ // depends on Timer1 ISR
     void timedTurnOff();
 };
 
-class ActUponTimeOut{ // depends on Timer1 ISR
+class ActUponTimeOut{ // Works based on millis(). Do not depends on Timer1 ISR
   private:
-    unsigned int _timeOutCntMax, _timeOutCnt;
-    bool _timerIsOn, _timeOut;
+    unsigned long _timeOutMilSec, _startTime;
+    bool _timerIsOn, _forceTimeOut;
   public:
-    bool timeOutFlag;
     ActUponTimeOut();
-    void startTimer(uint16_t timeOutMilSec);
-    void runTimer();
+    void startTimer(unsigned long timeOutMilSec);
     bool checkTimeOut();
     bool isTimerRunning();
     void stopTimer();
     void forceTimeOut();
 };
 
-class CalcTimeElapsed{ // Doesn't depends on Timer1 ISR. Works based on millis()
+class CheckTimeElapsed{ // Doesn't depends on Timer1 ISR. Works based on millis()
   private:
     unsigned long _startTime;
   public:
-    CalcTimeElapsed();
+    CheckTimeElapsed();
     void startTimer();
+    bool isTimeElapsed(unsigned long checkTimeDur);
     unsigned long getTimeElapsedMilSec();
 };
 

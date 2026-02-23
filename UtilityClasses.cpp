@@ -4,7 +4,7 @@
 // Ticks class implementations
   Ticks::Ticks(unsigned long tikPeriodMilSec){
     _cntMax = tikPeriodMilSec/TIMER1_PERIOD_MILLSEC;
-    _cnt = 0; _tickGenerated = false; _tickGeneratedLatch = false;
+    _cnt = 0; _tickGenerated = false;
   }
   bool Ticks::tick_Gen_Run(){
     _cnt++;
@@ -20,7 +20,6 @@
   bool Ticks::tick_Utilize(){
     if(_tickGenerated){
       _tickGenerated = false;
-      _tickGeneratedLatch = true;
       return true;
     }
     else{
@@ -88,29 +87,34 @@
   
 // TimeOutCnt class implementations
   ActUponTimeOut::ActUponTimeOut(){
-    _timerIsOn = false; _timeOut = false; timeOutFlag = false;
+    _timerIsOn = false; _forceTimeOut = false;
   }
-  void ActUponTimeOut::startTimer(uint16_t timeOutMilSec){
-    _timeOutCntMax = timeOutMilSec/TIMER1_PERIOD_MILLSEC;
+  void ActUponTimeOut::startTimer(unsigned long timeOutMilSec){
+    _timeOutMilSec = timeOutMilSec;
     _timerIsOn = true;
-    _timeOutCnt = 0;
+    _startTime = millis();
   }
-  void ActUponTimeOut::runTimer(){
+  // void ActUponTimeOut::runTimer(){
+  //   if(_timerIsOn){
+  //     _timeOutCnt++;
+  //     if(_timeOutCnt >= _timeOutCntMax){
+  //       _timerIsOn = false;
+  //       _timeOut = true;
+  //     }
+  //     else{
+  //       _timeOut = false;
+  //     }
+  //   }
+  // }
+  bool ActUponTimeOut::checkTimeOut(){
     if(_timerIsOn){
-      _timeOutCnt++;
-      if(_timeOutCnt >= _timeOutCntMax){
+      if((millis()-_startTime) > _timeOutMilSec){
         _timerIsOn = false;
-        _timeOut = true;
-      }
-      else{
-        _timeOut = false;
+        return true;
       }
     }
-  }
-  bool ActUponTimeOut::checkTimeOut(){
-    if(_timeOut){
-      _timeOut = false;
-      timeOutFlag = true;
+    else if(_forceTimeOut){
+      _forceTimeOut = false;
       return true;
     }
     else{
@@ -125,11 +129,10 @@
   }
   void ActUponTimeOut::stopTimer(){
     _timerIsOn = false;
-    _timeOut = false;
   }
   void ActUponTimeOut::forceTimeOut(){
     _timerIsOn = false;
-    _timeOut = true;
+    _forceTimeOut = true;
   }
 
 // CircularCounter class implementations
@@ -166,14 +169,22 @@
     }
   }
 
-// CalcTimeElapsed class implementations
-  CalcTimeElapsed::CalcTimeElapsed(){
+// CheckTimeElapsed class implementations
+  CheckTimeElapsed::CheckTimeElapsed(){
     _startTime = 0;
   }
-  void CalcTimeElapsed::startTimer(){
+  void CheckTimeElapsed::startTimer(){
     _startTime = millis();
   }
-  unsigned long CalcTimeElapsed::getTimeElapsedMilSec(){
+  bool CheckTimeElapsed::isTimeElapsed(unsigned long checkTimeDur){
+    if((millis()-_startTime) > checkTimeDur){
+      return true;
+    }
+    else{
+      return false;
+    }
+  }
+  unsigned long CheckTimeElapsed::getTimeElapsedMilSec(){
     return (millis() - _startTime);
   }
 
