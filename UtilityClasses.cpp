@@ -85,16 +85,92 @@
     }
   }
   
-// TimeOutCnt class implementations
-  ActUponTimeOut::ActUponTimeOut(){
-    _timerIsOn = false; _forceTimeOut = false;
+// NonBlockingTimer class implementations
+  NonBlockingTimer::NonBlockingTimer(){
+    _timerIsOn = false; _forceTimeOut = false; _timeOutMillis = 0;
   }
-  void ActUponTimeOut::startTimer(unsigned long timeOutMilSec){
-    _timeOutMilSec = timeOutMilSec;
+  void NonBlockingTimer::startTimer(unsigned long timeOutMillis = 0){ // Default value is applied at compile time
+    _timeOutMillis = timeOutMillis;
     _timerIsOn = true;
     _startTime = millis();
   }
-  // void ActUponTimeOut::runTimer(){
+  bool NonBlockingTimer::checkTimeOut(){
+    if(_timerIsOn && _timeOutMillis != 0){
+      if((millis()-_startTime) > _timeOutMillis){
+        _timerIsOn = false;
+        _timeOutMillis = 0;
+        return true;
+      }
+      else{
+        return false;
+      }
+    }
+    else if(_forceTimeOut){
+      _forceTimeOut = false;
+      return true;
+    }
+    else{
+      return false;
+    }
+  }
+  bool NonBlockingTimer::isTimerRunning(){
+    if(_timerIsOn)
+      return true;
+    else
+      return false;
+  }
+  void NonBlockingTimer::stopTimer(){
+    _timerIsOn = false;
+    _timeOutMillis = 0;
+  }
+  void NonBlockingTimer::forceTimeOut(){
+    _timerIsOn = false;
+    _timeOutMillis = 0;
+    _forceTimeOut = true;
+  }
+  bool NonBlockingTimer::isTimeElapsed(unsigned long checkTimeMillis){
+    if(((millis()-_startTime) > checkTimeMillis) && _timerIsOn){
+      return true;
+    }
+    else{
+      return false;
+    }
+  }
+  unsigned long NonBlockingTimer::elapsedMillis(){
+    if(_timerIsOn)
+      return (millis() - _startTime);
+    else
+      return 0;
+  }
+  unsigned long NonBlockingTimer::millisRemaining(){
+    if (_timerIsOn) {
+      unsigned long e = elapsedMillis();
+      return (e >= _timeOutMillis) ? 0 : (_timeOutMillis - e); // inherently checks that _timeOutMillis != 0
+    }
+    else{
+      return 0;
+    }
+  }
+  uint8_t NonBlockingTimer::percentComplete(){
+    unsigned long e;
+    if(_timerIsOn && (_timeOutMillis != 0)){
+      e = elapsedMillis();
+      if (e >= _timeOutMillis)
+        return 100;
+      else
+        return (uint8_t)((e * 100UL) / _timeOutMillis);
+    }
+    else{
+      return 0;
+    }
+  }
+  unsigned long NonBlockingTimer::timeOutMillis(){
+    if(_timerIsOn)
+      return _timeOutMillis;
+    else
+      return 0;
+  }
+  // void NonBlockingTimer::runTimer(){
   //   if(_timerIsOn){
   //     _timeOutCnt++;
   //     if(_timeOutCnt >= _timeOutCntMax){
@@ -106,34 +182,6 @@
   //     }
   //   }
   // }
-  bool ActUponTimeOut::checkTimeOut(){
-    if(_timerIsOn){
-      if((millis()-_startTime) > _timeOutMilSec){
-        _timerIsOn = false;
-        return true;
-      }
-    }
-    else if(_forceTimeOut){
-      _forceTimeOut = false;
-      return true;
-    }
-    else{
-      return false;
-    }
-  }
-  bool ActUponTimeOut::isTimerRunning(){
-    if(_timerIsOn)
-      return true;
-    else
-      return false;
-  }
-  void ActUponTimeOut::stopTimer(){
-    _timerIsOn = false;
-  }
-  void ActUponTimeOut::forceTimeOut(){
-    _timerIsOn = false;
-    _forceTimeOut = true;
-  }
 
 // CircularCounter class implementations
   CircularCounter::CircularCounter(byte numCounts){
@@ -167,25 +215,6 @@
     else{
       return false;
     }
-  }
-
-// CheckTimeElapsed class implementations
-  CheckTimeElapsed::CheckTimeElapsed(){
-    _startTime = 0;
-  }
-  void CheckTimeElapsed::startTimer(){
-    _startTime = millis();
-  }
-  bool CheckTimeElapsed::isTimeElapsed(unsigned long checkTimeDur){
-    if((millis()-_startTime) > checkTimeDur){
-      return true;
-    }
-    else{
-      return false;
-    }
-  }
-  unsigned long CheckTimeElapsed::getTimeElapsedMilSec(){
-    return (millis() - _startTime);
   }
 
 // BinSemaphore class implementations

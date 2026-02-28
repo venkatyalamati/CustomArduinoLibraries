@@ -50,27 +50,22 @@ class Buzzer{ // depends on Timer1 ISR
     void timedTurnOff();
 };
 
-class ActUponTimeOut{ // Works based on millis(). Do not depends on Timer1 ISR
+class NonBlockingTimer{ // Works based on millis(). Do not depends on Timer1 ISR
   private:
-    unsigned long _timeOutMilSec, _startTime;
+    unsigned long _timeOutMillis, _startTime;
     bool _timerIsOn, _forceTimeOut;
   public:
-    ActUponTimeOut();
-    void startTimer(unsigned long timeOutMilSec);
+    NonBlockingTimer();
+    void startTimer(unsigned long timeOutMillis = 0); // Default value is applied at compile time
     bool checkTimeOut();
     bool isTimerRunning();
+    bool isTimeElapsed(unsigned long checkTimeDur);
     void stopTimer();
     void forceTimeOut();
-};
-
-class CheckTimeElapsed{ // Doesn't depends on Timer1 ISR. Works based on millis()
-  private:
-    unsigned long _startTime;
-  public:
-    CheckTimeElapsed();
-    void startTimer();
-    bool isTimeElapsed(unsigned long checkTimeDur);
-    unsigned long getTimeElapsedMilSec();
+    unsigned long elapsedMillis();
+    unsigned long millisRemaining();
+    unsigned long timeOutMillis();
+    uint8_t percentComplete();
 };
 
 class BinSemaphore{
