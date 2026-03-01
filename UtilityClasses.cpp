@@ -86,50 +86,56 @@
   }
   
 // NonBlockingTimer class implementations
-  NonBlockingTimer::NonBlockingTimer(){
-    _timerIsOn = false; _forceTimeOut = false; _timeOutMillis = 0;
-  }
-  void NonBlockingTimer::startTimer(unsigned long timeOutMillis = 0){ // Default value is applied at compile time
+  NonBlockingTimer::NonBlockingTimer():_timerIsOn(false),_forceTimeOut(false),_timeOutMillis(0),_startTime(0)
+  {} // Using initializer list is better on Arduino (more efficient)
+  void NonBlockingTimer::startTimer(unsigned long timeOutMillis = INFINITE){
     _timeOutMillis = timeOutMillis;
     _timerIsOn = true;
     _startTime = millis();
   }
-  bool NonBlockingTimer::checkTimeOut(){
-    if(_timerIsOn && _timeOutMillis != 0){
-      if((millis()-_startTime) > _timeOutMillis){
-        _timerIsOn = false;
-        _timeOutMillis = 0;
-        return true;
+  bool NonBlockingTimer::checkTimeOut(bool autoReload){
+    if(_forceTimeOut){
+      if(autoReload){
+        _timerIsOn = true;
+        _startTime = millis();
       }
       else{
-        return false;
+        _timerIsOn = false;
+        _timeOutMillis = 0;
       }
-    }
-    else if(_forceTimeOut){
       _forceTimeOut = false;
       return true;
+    }
+    else if(_timerIsOn && _timeOutMillis != INFINITE){
+      if((millis()-_startTime) >= _timeOutMillis){
+        if(autoReload){
+          _timerIsOn = true;
+          _startTime = millis();
+        }
+        else{
+          _timerIsOn = false;
+          _timeOutMillis = 0;
+        }
+        return true;
+      }
+      return false;
     }
     else{
       return false;
     }
   }
   bool NonBlockingTimer::isTimerRunning(){
-    if(_timerIsOn)
-      return true;
-    else
-      return false;
+    return _timerIsOn;
   }
   void NonBlockingTimer::stopTimer(){
     _timerIsOn = false;
     _timeOutMillis = 0;
   }
   void NonBlockingTimer::forceTimeOut(){
-    _timerIsOn = false;
-    _timeOutMillis = 0;
     _forceTimeOut = true;
   }
   bool NonBlockingTimer::isTimeElapsed(unsigned long checkTimeMillis){
-    if(((millis()-_startTime) > checkTimeMillis) && _timerIsOn){
+    if( _timerIsOn && ((millis()-_startTime) >= checkTimeMillis) ){
       return true;
     }
     else{
@@ -143,18 +149,17 @@
       return 0;
   }
   unsigned long NonBlockingTimer::millisRemaining(){
+    unsigned long e = elapsedMillis();
     if (_timerIsOn) {
-      unsigned long e = elapsedMillis();
-      return (e >= _timeOutMillis) ? 0 : (_timeOutMillis - e); // inherently checks that _timeOutMillis != 0
+      return (e >= _timeOutMillis) ? 0 : (_timeOutMillis - e); // inherently checks that _timeOutMillis != INFINITE
     }
     else{
       return 0;
     }
   }
   uint8_t NonBlockingTimer::percentComplete(){
-    unsigned long e;
-    if(_timerIsOn && (_timeOutMillis != 0)){
-      e = elapsedMillis();
+    unsigned long e = elapsedMillis();
+    if(_timerIsOn && (_timeOutMillis != INFINITE)){
       if (e >= _timeOutMillis)
         return 100;
       else
@@ -170,6 +175,11 @@
     else
       return 0;
   }
+  void NonBlockingTimer::restartTimer(){
+    _startTime = millis();
+    _timerIsOn = true;
+  }
+  
   // void NonBlockingTimer::runTimer(){
   //   if(_timerIsOn){
   //     _timeOutCnt++;

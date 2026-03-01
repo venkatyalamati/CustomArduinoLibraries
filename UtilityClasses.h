@@ -55,17 +55,21 @@ class NonBlockingTimer{ // Works based on millis(). Do not depends on Timer1 ISR
     unsigned long _timeOutMillis, _startTime;
     bool _timerIsOn, _forceTimeOut;
   public:
+    // static unsigned long INFINITE = 0; -> requires a definition outside the class
+    // constexpr is better than const for compile-time constants
+    static constexpr unsigned long INFINITE = 0;
     NonBlockingTimer();
-    void startTimer(unsigned long timeOutMillis = 0); // Default value is applied at compile time
-    bool checkTimeOut();
+    void startTimer(unsigned long timeOutMillis = INFINITE); // Default value is applied at compile time
+    bool checkTimeOut(bool autoReload); // normally it is used when time mode is not INFINITE, but it can be used in INFINITE mode with forceTimeOut()
     bool isTimerRunning();
     bool isTimeElapsed(unsigned long checkTimeDur);
     void stopTimer();
-    void forceTimeOut();
+    void forceTimeOut(); // this enables the use of checkTimeOut() even in INFINITE timer mode
     unsigned long elapsedMillis();
     unsigned long millisRemaining();
     unsigned long timeOutMillis();
     uint8_t percentComplete();
+    void restartTimer(); // retains the _timeOutMillis value only if this is called before checkTimeOut() call
 };
 
 class BinSemaphore{
