@@ -86,98 +86,113 @@
   }
   
 // NonBlockingTimer class implementations
-  NonBlockingTimer::NonBlockingTimer():_timerIsOn(false),_forceTimeOut(false),_timeOutMillis(0),_startTime(0)
+  NonBlockingTimer::NonBlockingTimer():_timeOutMillis(0),_startTime(0),_timerMode(TimerModes::infRunning),_timerState(TimerStates::stopped)
   {} // Using initializer list is better on Arduino (more efficient)
-  void NonBlockingTimer::startTimer(unsigned long timeOutMillis = INFINITE){
+  void NonBlockingTimer::start(TimerModes timerMode, unsigned long timeOutMillis = 0){
     _timeOutMillis = timeOutMillis;
-    _timerIsOn = true;
+    _timerMode = timerMode;
+    _timerState = TimerStates::running;
     _startTime = millis();
   }
-  bool NonBlockingTimer::checkTimeOut(bool autoReload){
-    if(_forceTimeOut){
-      if(autoReload){
-        _timerIsOn = true;
-        _startTime = millis();
+  void NonBlockingTimer::update(){
+    if(_timerState == TimerStates::running && _timerMode != TimerModes::infRunning){
+      if((millis()-_startTime) >= _timeOutMillis){
+        if(_timerMode == TimerModes::finPeriodic){
+          _startTime = millis();  // auto reload
+          _timerState = TimerStates::expired;
+        }
+        else{ // finite one shot mode
+          _timerState = TimerStates::expired;
+        }
       }
-      else{
-        _timerIsOn = false;
+    }
+  }
+  bool NonBlockingTimer::event(){
+    if(_timerState == TimerStates::expired){
+      if(_timerMode == TimerModes::finOneShot){
+        _timerState = TimerStates::stopped;
         _timeOutMillis = 0;
       }
-      _forceTimeOut = false;
+      else{ // finite periodic mode
+        _timerState = TimerStates::running;
+      } 
       return true;
     }
-    else if(_timerIsOn && _timeOutMillis != INFINITE){
-      if((millis()-_startTime) >= _timeOutMillis){
-        if(autoReload){
-          _timerIsOn = true;
-          _startTime = millis();
-        }
-        else{
-          _timerIsOn = false;
-          _timeOutMillis = 0;
-        }
-        return true;
-      }
-      return false;
-    }
-    else{
-      return false;
-    }
+    return false;
   }
-  bool NonBlockingTimer::isTimerRunning(){
-    return _timerIsOn;
+  void NonBlockingTimer::restart(){
+    _startTime = millis();
+    _timerState = TimerStates::running;
   }
-  void NonBlockingTimer::stopTimer(){
-    _timerIsOn = false;
+  bool NonBlockingTimer::isModeInfRunning(){
+    if(_timerMode == TimerModes::infRunning)
+      return true;
+    return false;
+  }
+  bool NonBlockingTimer::isModeFinOneShot(){
+    if(_timerMode == TimerModes::finOneShot)
+      return true;
+    return false;
+  }
+  bool NonBlockingTimer::isModeFinPeriodic(){
+    if(_timerMode == TimerModes::finPeriodic)
+      return true;
+    return false;
+  }
+  bool NonBlockingTimer::isRunning(){
+    if(_timerState == TimerStates::running)
+      return true;
+    return false;
+  }
+  bool NonBlockingTimer::isExpired(){
+    if(_timerState == TimerStates::expired)
+      return true;
+    return false;
+  }
+  bool NonBlockingTimer::isStopped(){
+    if(_timerState == TimerStates::stopped)
+      return true;
+    return false;
+  }
+  void NonBlockingTimer::stop(){
+    _timerState = TimerStates::stopped;
     _timeOutMillis = 0;
   }
-  void NonBlockingTimer::forceTimeOut(){
-    _forceTimeOut = true;
+  void NonBlockingTimer::forceExpire(){
+    _timerState = TimerStates::expired;
   }
-  bool NonBlockingTimer::isTimeElapsed(unsigned long checkTimeMillis){
-    if( _timerIsOn && ((millis()-_startTime) >= checkTimeMillis) ){
-      return true;
-    }
-    else{
-      return false;
-    }
-  }
-  unsigned long NonBlockingTimer::elapsedMillis(){
-    if(_timerIsOn)
+  unsigned long NonBlockingTimer::elapsed(){
+    if(_timerState == TimerStates::running)
       return (millis() - _startTime);
     else
       return 0;
   }
-  unsigned long NonBlockingTimer::millisRemaining(){
-    unsigned long e = elapsedMillis();
-    if (_timerIsOn) {
-      return (e >= _timeOutMillis) ? 0 : (_timeOutMillis - e); // inherently checks that _timeOutMillis != INFINITE
+  unsigned long NonBlockingTimer::remaining(){
+    unsigned long e = elapsed();
+    if(_timerMode != TimerModes::infRunning && _timerState == TimerStates::running){
+      return (_timeOutMillis - e);
     }
     else{
       return 0;
     }
   }
-  uint8_t NonBlockingTimer::percentComplete(){
-    unsigned long e = elapsedMillis();
-    if(_timerIsOn && (_timeOutMillis != INFINITE)){
-      if (e >= _timeOutMillis)
-        return 100;
+  unsigned long NonBlockingTimer::timeOutVal(){
+    if(_timerMode != TimerModes::infRunning && _timerState != TimerStates::stopped)
+      return _timeOutMillis;
+    else
+      return 0;
+  }
+  uint8_t NonBlockingTimer::percentComplete(){ // max output is 200%
+    unsigned long e = elapsed();
+    if(_timerMode != TimerModes::infRunning && _timerState == TimerStates::running){
+      if (e >= 2*_timeOutMillis)
+        return 200;
       else
         return (uint8_t)((e * 100UL) / _timeOutMillis);
     }
     else{
       return 0;
     }
-  }
-  unsigned long NonBlockingTimer::timeOutMillis(){
-    if(_timerIsOn)
-      return _timeOutMillis;
-    else
-      return 0;
-  }
-  void NonBlockingTimer::restartTimer(){
-    _startTime = millis();
-    _timerIsOn = true;
   }
   
   // void NonBlockingTimer::runTimer(){
@@ -242,4 +257,36 @@
     else{
       return false;
     }
+  }
+// Button class implementations
+  Button::Button(uint8_t buttonPin) {
+    pin = buttonPin;
+    pinMode(pin, INPUT_PULLUP);
+
+    lastState = HIGH;
+    currentState = HIGH;
+    stableState = HIGH;
+
+    lastChangeMillis = 0;
+    currentScanMillis = 0;
+    debounceTimeMilSec = 40;
+  }
+
+  bool Button::scanButton() {
+    bool retVal = false;
+      currentScanMillis = millis();
+      currentState = digitalRead(pin);
+
+      if (currentState != lastState) {
+          lastChangeMillis = currentScanMillis;
+          lastState = currentState;
+      }
+      if ((currentScanMillis - lastChangeMillis) >= debounceTimeMilSec) {
+          if (stableState != currentState) {
+              stableState = currentState;
+              if (stableState == LOW)
+                retVal = true;
+          }
+      }
+      return retVal;
   }
