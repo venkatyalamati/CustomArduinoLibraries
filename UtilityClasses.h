@@ -17,11 +17,11 @@ class BlinkActivity{ // Doesn't depends on Timer1 ISR. It is designed to be used
 class Ticks // depends on Timer1 ISR
 {
   private:
-    unsigned int _cnt, _cntMax;
+    uint16_t _cnt, _cntMax;
     bool _tickGenerated;
 
   public:
-    Ticks(unsigned long tikPeriodMilSec);
+    Ticks(uint32_t tikPeriodMilSec);
     bool tick_Gen_Run(); // to be kept inside ISR. If tick generated during that ISR iteration, gives true, else gives false.
     bool tick_Utilize(); // to be kept outside ISR. Gives true for onetime, after tick generated.
     void force_Gen_Tick();
@@ -42,7 +42,7 @@ class CircularCounter // Doesn't depends on Timer1 ISR. It can be used with or w
 
 class Buzzer{ // depends on Timer1 ISR
   private:
-    unsigned int _onTimeCntMax, _onTimeCnt;
+    uint16_t _onTimeCntMax, _onTimeCnt;
     bool _isOn; byte _buzzerPin;
   public:
     Buzzer(byte buzzerPin);
@@ -53,13 +53,15 @@ class Buzzer{ // depends on Timer1 ISR
 enum class TimerModes : uint8_t {infRunning, finOneShot, finPeriodic};
 enum class TimerStates : uint8_t {stopped, running, expired};
 
-class NonBlockingTimer{ // Works based on millis(). To be used alongwith Timer1 ISR for running update()
+class NonBlockingTimer{ // Works based on Timer1 ISR. Doesn't use millis(). Max input for 'timeOutMillis' is 65,00,000 millis
   private:
-    unsigned long _timeOutMillis, _startTime;
+    uint16_t _timeOutCnt, _timeOutCntMax;
     TimerModes _timerMode; TimerStates _timerState;
   public:
     NonBlockingTimer();
-    void start(TimerModes timerMode, unsigned long timeOutMillis = 0); // Default value is applied at compile time
+    void start_infRunning();
+    void start_finOneShot(uint32_t timeOutMillis);
+    void start_finPeriodic(uint32_t timeOutMillis);
     void update();
     bool event();
     void restart();
@@ -71,9 +73,9 @@ class NonBlockingTimer{ // Works based on millis(). To be used alongwith Timer1 
     bool isStopped();
     void stop();
     void forceExpire();
-    unsigned long elapsed();
-    unsigned long remaining();
-    unsigned long timeOutVal();
+    uint32_t elapsed();
+    uint32_t remaining();
+    uint32_t timeOutVal();
     uint8_t percentComplete();
 };
 

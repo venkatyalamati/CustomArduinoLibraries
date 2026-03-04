@@ -2,7 +2,7 @@
 
 // Note:- Do not use delay(), Serial.print() etc. inside the constructor
 // Ticks class implementations
-  Ticks::Ticks(unsigned long tikPeriodMilSec){
+  Ticks::Ticks(uint32_t tikPeriodMilSec){
     _cntMax = tikPeriodMilSec/TIMER1_PERIOD_MILLSEC;
     _cnt = 0; _tickGenerated = false;
   }
@@ -86,22 +86,34 @@
   }
   
 // NonBlockingTimer class implementations
-  NonBlockingTimer::NonBlockingTimer():_timeOutMillis(0),_startTime(0),_timerMode(TimerModes::infRunning),_timerState(TimerStates::stopped)
+  NonBlockingTimer::NonBlockingTimer():_timeOutCnt(0),_timeOutCntMax(0),_timerMode(TimerModes::infRunning),_timerState(TimerStates::stopped)
   {} // Using initializer list is better on Arduino (more efficient)
-  void NonBlockingTimer::start(TimerModes timerMode, unsigned long timeOutMillis = 0){
-    _timeOutMillis = timeOutMillis;
-    _timerMode = timerMode;
+  void NonBlockingTimer::start_infRunning(){
+    _timeOutCnt = 0;
     _timerState = TimerStates::running;
-    _startTime = millis();
+    _timerMode = TimerModes::infRunning;
+  }
+  void NonBlockingTimer::start_finOneShot(uint32_t timeOutMillis){
+    _timeOutCntMax = static_cast<uint16_t>(timeOutMillis/static_cast<uint32_t>(TIMER1_PERIOD_MILLSEC));
+    _timeOutCnt = 0;
+    _timerState = TimerStates::running;
+    _timerMode = TimerModes::finOneShot;
+  }
+  void NonBlockingTimer::start_finPeriodic(uint32_t timeOutMillis){
+    _timeOutCntMax = static_cast<uint16_t>(timeOutMillis/static_cast<uint32_t>(TIMER1_PERIOD_MILLSEC));
+    _timeOutCnt = 0;
+    _timerState = TimerStates::running;
+    _timerMode = TimerModes::finPeriodic;
   }
   void NonBlockingTimer::update(){
     if(_timerState == TimerStates::running && _timerMode != TimerModes::infRunning){
-      if((millis()-_startTime) >= _timeOutMillis){
+      _timeOutCnt++;
+      if( _timeOutCnt >= _timeOutCntMax){
         if(_timerMode == TimerModes::finPeriodic){
-          _startTime = millis();  // auto reload
+          _timeOutCnt = 0; // auto reload
           _timerState = TimerStates::expired;
         }
-        else{ // finite one shot mode
+        else{ // finOneShot mode
           _timerState = TimerStates::expired;
         }
       }
@@ -111,7 +123,7 @@
     if(_timerState == TimerStates::expired){
       if(_timerMode == TimerModes::finOneShot){
         _timerState = TimerStates::stopped;
-        _timeOutMillis = 0;
+        _timeOutCntMax = 0;
       }
       else{ // finite periodic mode
         _timerState = TimerStates::running;
@@ -121,7 +133,7 @@
     return false;
   }
   void NonBlockingTimer::restart(){
-    _startTime = millis();
+    _timeOutCnt = 0;
     _timerState = TimerStates::running;
   }
   bool NonBlockingTimer::isModeInfRunning(){
@@ -156,57 +168,42 @@
   }
   void NonBlockingTimer::stop(){
     _timerState = TimerStates::stopped;
-    _timeOutMillis = 0;
+    _timeOutCntMax = 0;
   }
   void NonBlockingTimer::forceExpire(){
     _timerState = TimerStates::expired;
   }
-  unsigned long NonBlockingTimer::elapsed(){
+  uint32_t NonBlockingTimer::elapsed(){
     if(_timerState == TimerStates::running)
-      return (millis() - _startTime);
+      return static_cast<uint32_t>(_timeOutCnt) * static_cast<uint32_t>(TIMER1_PERIOD_MILLSEC);
     else
       return 0;
   }
-  unsigned long NonBlockingTimer::remaining(){
-    unsigned long e = elapsed();
+  uint32_t NonBlockingTimer::remaining(){
     if(_timerMode != TimerModes::infRunning && _timerState == TimerStates::running){
-      return (_timeOutMillis - e);
+      return static_cast<uint32_t>(_timeOutCntMax - _timeOutCnt) * static_cast<uint32_t>(TIMER1_PERIOD_MILLSEC);
     }
     else{
       return 0;
     }
   }
-  unsigned long NonBlockingTimer::timeOutVal(){
+  uint32_t NonBlockingTimer::timeOutVal(){
     if(_timerMode != TimerModes::infRunning && _timerState != TimerStates::stopped)
-      return _timeOutMillis;
+      return static_cast<uint32_t>(_timeOutCntMax) * static_cast<uint32_t>(TIMER1_PERIOD_MILLSEC);
     else
       return 0;
   }
   uint8_t NonBlockingTimer::percentComplete(){ // max output is 200%
-    unsigned long e = elapsed();
     if(_timerMode != TimerModes::infRunning && _timerState == TimerStates::running){
-      if (e >= 2*_timeOutMillis)
+      if (_timeOutCnt >= 2*_timeOutCntMax)
         return 200;
       else
-        return (uint8_t)((e * 100UL) / _timeOutMillis);
+        return static_cast<uint8_t>((_timeOutCnt * 100) / _timeOutCntMax);
     }
     else{
       return 0;
     }
   }
-  
-  // void NonBlockingTimer::runTimer(){
-  //   if(_timerIsOn){
-  //     _timeOutCnt++;
-  //     if(_timeOutCnt >= _timeOutCntMax){
-  //       _timerIsOn = false;
-  //       _timeOut = true;
-  //     }
-  //     else{
-  //       _timeOut = false;
-  //     }
-  //   }
-  // }
 
 // CircularCounter class implementations
   CircularCounter::CircularCounter(byte numCounts){
