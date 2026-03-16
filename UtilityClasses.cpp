@@ -54,35 +54,43 @@
     }
   }
 
-// BlinkActivity class implementations
-  BlinkActivity::BlinkActivity(){
-    enableActivity = false; _statusOn = false;
+// PreemptiveOnOff class implementations
+  PreemptiveOnOff::PreemptiveOnOff(uint32_t cyclePeriodMillis, uint8_t dutCylPercent){
+    _tikCntMax = cyclePeriodMillis/TIMER1_PERIOD_MILLSEC;
+    _tikCntOn = static_cast<uint16_t>(static_cast<uint32_t>(dutCylPercent * _tikCntMax)/100);
+    _enableActivity = false;
   }
-  void BlinkActivity::srtActivity(unsigned int maxRepeats){
-    _cntMax = maxRepeats;
-    _cnt = 0;
-    enableActivity = true;
+  void PreemptiveOnOff::start(uint8_t maxRepeats){
+    _cycleCntMax = maxRepeats;
+    _cycleCnt = 0; _tikCnt = 0;
+    _enableActivity = true; _onActDone = false; _offActDone = false;
   }
-  bool BlinkActivity::switchOn(){
-    if(enableActivity){
-      _statusOn = true;
-      return true;
-    }
-    else{
-      return false;
+  void PreemptiveOnOff::executor(void (*task_On_Ptr)(), void (*task_Off_Ptr)(), void (*task_Final_Ptr)()){
+    if(_enableActivity){
+      _tikCnt++;
+      if(!_onActDone){
+        if(task_On_Ptr != nullptr) task_On_Ptr(); _onActDone = true;
+      }
+      else if(_tikCnt >= _tikCntOn){
+        if(!_offActDone){
+          if(task_Off_Ptr != nullptr) task_Off_Ptr(); _offActDone = true; _cycleCnt++;
+        }
+      }
+
+      if(_cycleCnt >= _cycleCntMax){
+        _enableActivity = false;
+        if(task_Final_Ptr != nullptr) task_Final_Ptr();
+      }
+        
+      if(_tikCnt >= _tikCntMax)
+        _tikCnt = 0;
     }
   }
-  bool BlinkActivity::switchOff(){
-    if(_statusOn){
-      _statusOn = false;
-      _cnt++;
-      if(_cnt >= _cntMax)
-        enableActivity = false;
-      return true;
-    }
-    else{
-      return false;
-    }
+  bool PreemptiveOnOff::isRunning(){
+    return _enableActivity;
+  }
+  void PreemptiveOnOff::stop(){
+    _enableActivity = false;
   }
   
 // NonBlockingTimer class implementations
@@ -255,9 +263,9 @@
       return false;
     }
   }
-// Button class implementations
-  Button::Button(uint8_t buttonPin) {
-    pin = buttonPin;
+// ButtonMillisBased class implementations
+  ButtonMillisBased::ButtonMillisBased(uint8_t pin) {
+    this->pin = pin;
     pinMode(pin, INPUT_PULLUP);
 
     lastState = HIGH;
@@ -265,13 +273,13 @@
     stableState = HIGH;
 
     lastChangeMillis = 0;
-    currentScanMillis = 0;
     debounceTimeMilSec = 40;
   }
 
-  bool Button::scanButton() {
+  bool ButtonMillisBased::scanButton() {
     bool retVal = false;
-      currentScanMillis = millis();
+    unsigned long currentScanMillis = millis();
+
       currentState = digitalRead(pin);
 
       if (currentState != lastState) {
@@ -287,3 +295,131 @@
       }
       return retVal;
   }
+
+// ButtonTimer2Based class implementations
+  ButtonTimer2Based::ButtonTimer2Based(uint8_t pin) {
+    _pin = pin;
+    
+    _lastState = HIGH;
+    _currentState = HIGH;
+    _stableState = HIGH;
+
+    _lastChangeTick = 0;
+  }
+  void ButtonTimer2Based::setPinMode(){
+    pinMode(_pin, INPUT_PULLUP);
+  }
+  void ButtonTimer2Based::scanButton() {
+    bool retVal = false;
+      _currentState = digitalRead(_pin);
+
+      if (_currentState != _lastState) {
+          _lastChangeTick = timer2_isr_tick;
+          _lastState = _currentState;
+      }
+      if ((timer2_isr_tick - _lastChangeTick) >= debounceTicks) {
+          if (_stableState != _currentState) {
+              _stableState = _currentState;
+              if (_stableState == LOW)
+                retVal = true;
+          }
+      }
+      if(retVal)
+        pinButtPressed = _pin;
+  }
+  // static keyword only in declaration inside class — never repeat it in definition outside class.
+  void ButtonTimer2Based::setDebNormPress(){
+    debounceTicks = 40/TIMER2_PERIOD_MILLSEC; // for 40ms debounce time
+  }
+  void ButtonTimer2Based::setDebLongPress(){
+    debounceTicks = 5000/TIMER2_PERIOD_MILLSEC; // for 5s debounce time
+  }
+
+// LevelSensor class implementations
+  LevelSensor::LevelSensor(uint8_t sensorPin, int16_t addrEEPROM){
+    addrEmptyVal = addrEEPROM;
+    addrFullVal = addrEEPROM + 2;
+    this->sensorPin = sensorPin;
+  }
+  void LevelSensor::storeDfltCalParameters(){
+    EEPROM.put(addrEmptyVal, 200); delay(10);
+    EEPROM.put(addrFullVal, 900); delay(10);
+  }
+  void LevelSensor::loadCalParameters() {
+    EEPROM.get(addrEmptyVal, emptyMarkVal);
+    EEPROM.get(addrFullVal, fullMarkVal);
+  }
+  // Save current sensor value as 0% (empty)
+  void LevelSensor::calibrateEmpty() {
+    emptyMarkVal = sensorRead();
+    EEPROM.put(addrEmptyVal, emptyMarkVal); delay(10);
+  }
+  // Save current sensor value as 100% (full)
+  void LevelSensor::calibrateFull() {
+    fullMarkVal = sensorRead();
+    EEPROM.put(addrFullVal, fullMarkVal); delay(10);
+  }
+  // Calculate tank level in percent
+  float LevelSensor::getTankLevelPercent() {
+    int currSensorVal=0; float levelPercentage=0.0;
+    currSensorVal = sensorRead();
+    levelPercentage = (currSensorVal - emptyMarkVal) * 100.0 / (fullMarkVal - emptyMarkVal); // map function simplified for this case
+    return levelPercentage;
+  }
+  int16_t LevelSensor::sensorRead(){
+    #define numSamples 6
+    int16_t sensorVal; uint16_t sumSensorVal;
+    sensorVal = analogRead(sensorPin); // simply discard
+    sumSensorVal = 0;
+    for(uint8_t i=0; i<numSamples; i++){
+      delay(200);
+      sensorVal = analogRead(sensorPin);
+      sumSensorVal += sensorVal;
+    }
+    sumSensorVal /= numSamples;
+    sensorVal = sumSensorVal;
+    return sensorVal;
+  }
+  // levelPercentage = floatMap(currSensorVal, emptyMarkVal, fullMarkVal, 0, 100);
+  // float LevelSensor::floatMap(float x, float in_min, float in_max, float out_min, float out_max) {
+  //   float retVal=0;
+  //   retVal = (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+  //   return retVal;
+  // }
+
+// ShiftRegisterController class implementations
+  ShiftRegisterController::ShiftRegisterController(uint8_t OE_Pin, uint8_t latchPin, uint8_t dataPin, uint8_t clkPin) {
+    _OE_Pin = OE_Pin; _latchPin = latchPin; _dataPin = dataPin; _clkPin = clkPin;
+    _outputEnabled = false;
+  }
+  void ShiftRegisterController::doStartUpActions(){
+    pinMode(_OE_Pin, OUTPUT); enableOutput();
+    pinMode(_latchPin, OUTPUT);
+    pinMode(_dataPin, OUTPUT);
+    pinMode(_clkPin, OUTPUT);
+  }
+  void ShiftRegisterController::updateOutputs(const uint8_t DO_StatusArr[]){
+    _dataByteDO = 0;
+    for (uint8_t i = 0; i < 8; i++){
+      if (DO_StatusArr[i] == 1){
+        _dataByteDO |= (1 << i);
+      }
+    }
+    
+    digitalWrite(_latchPin, LOW);
+    shiftOut(_dataPin, _clkPin, MSBFIRST, _dataByteDO);
+    digitalWrite(_latchPin, HIGH);
+  }
+  void ShiftRegisterController::disableOutput(){
+    if(_outputEnabled){
+      digitalWrite(_OE_Pin, HIGH); // _OE_Pin is active low
+      _outputEnabled = false;
+    }
+  }
+  void ShiftRegisterController::enableOutput(){
+    if(!_outputEnabled){
+      digitalWrite(_OE_Pin, LOW); // _OE_Pin is active low
+      _outputEnabled = true;
+    }
+  } 
+  

@@ -1,17 +1,19 @@
 #pragma once
 #include <Arduino.h>
+#include <EEPROM.h>
 #include "GlobalConstants.h" // include here only to use this in other projects
 
-class BlinkActivity{ // Doesn't depends on Timer1 ISR. It is designed to be used with Ticks class
+class PreemptiveOnOff{ // Depends on Timer1 ISR. It is designed to use without Ticks class
   private:
-    unsigned int _cnt, _cntMax;
-    bool _statusOn;
+    uint16_t _tikCnt, _tikCntOn, _tikCntMax;
+    uint8_t _cycleCnt, _cycleCntMax;
+    bool _enableActivity, _onActDone, _offActDone;
   public:
-    bool enableActivity;
-    BlinkActivity();
-    void srtActivity(unsigned int maxRepeats);
-    bool switchOn();
-    bool switchOff();
+    PreemptiveOnOff(uint32_t cyclePeriodMillis, uint8_t dutCylPercent);
+    void start(uint8_t maxRepeats);
+    void executor(void (*task_On_Ptr)(), void (*task_Off_Ptr)(), void (*task_Final_Ptr)());
+    bool isRunning();
+    void stop();
 };
 
 class Ticks // depends on Timer1 ISR
@@ -88,18 +90,59 @@ class BinSemaphore{
     bool take();
 };
 
-class Button {
-public:
+class ButtonMillisBased {
+private:
     uint8_t pin;
-
     bool lastState;
     bool currentState;
     bool stableState;
-    
     unsigned long lastChangeMillis;
-    unsigned long currentScanMillis;
     unsigned long debounceTimeMilSec;
-
-    Button(uint8_t buttonPin);
+public:
+    ButtonMillisBased(uint8_t buttonPin);
     bool scanButton();
+};
+
+class ButtonTimer2Based {
+private:
+    uint8_t _pin;
+    bool _lastState;
+    bool _currentState;
+    bool _stableState;
+    uint16_t _lastChangeTick;
+public:
+    static volatile uint16_t timer2_isr_tick;
+    static volatile uint16_t debounceTicks;
+    static volatile uint8_t pinButtPressed;
+    
+    ButtonTimer2Based(uint8_t pin);
+    static void setDebNormPress();
+    static void setDebLongPress();
+    void setPinMode();
+    void scanButton();
+};
+
+class LevelSensor{
+  public:
+    int16_t addrEmptyVal, addrFullVal, emptyMarkVal, fullMarkVal; uint8_t sensorPin;
+    LevelSensor(uint8_t sensorPin, int16_t addrEEPROM);
+    void storeDfltCalParameters();
+    void loadCalParameters();
+    void calibrateEmpty();
+    void calibrateFull();
+    float getTankLevelPercent();
+    int16_t sensorRead();
+};
+
+class ShiftRegisterController {
+  public:
+    ShiftRegisterController(uint8_t OE_Pin, uint8_t latchPin, uint8_t dataPin, uint8_t clkPin);
+    void doStartUpActions();
+    void updateOutputs(const uint8_t DO_StatusArr[]);
+    void disableOutput();
+    void enableOutput();
+
+  private:
+    uint8_t _OE_Pin, _latchPin, _dataPin, _clkPin;
+    uint8_t _dataByteDO; bool _outputEnabled;
 };

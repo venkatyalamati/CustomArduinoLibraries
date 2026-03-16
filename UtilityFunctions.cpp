@@ -1,32 +1,91 @@
  #include "UtilityFunctions.h"
- 
 // -------------- Timer related functions ---------------
-  void setupTimer1(){
-    unsigned long OCR1A_Value;
-    // must be < 65536 -> '15625' is for ISR interval of 1000ms @16MHz 
-    OCR1A_Value = ((16000000UL / 1024) * (TIMER1_PERIOD_MILLSEC / 1000.0)) - 1; // for 16.0 MHz
-    //set timer1 interrupt
-    TCCR1A = 0;// set entire TCCR1A register to 0
-    TCCR1B = 0;// same for TCCR1B
-    TCNT1  = 0;//initialize counter value to 0
-    // set compare match register increments
-    OCR1A = OCR1A_Value;
-    // turn on CTC mode
-    TCCR1B |= (1 << WGM12);
-    // Set CS10 and CS12 bits for 1024 prescaler
-    TCCR1B |= (1 << CS12) | (1 << CS10);  
-    TCNT1  = 0;//initialize counter value to 0
-    TIMSK1 |= (1 << OCIE1A); // enable timer1 compare interrupt
+  // ─── Timer1 Setup (initializes but leaves disabled) ──────────────────────────
+  // Period range: 1ms to 4194ms (prescaler fixed at 1024, 16MHz)
+  void setupTimer1() {
+    /*
+    Timer1 = 16-bit → max OCR1A = 65535
+    At 16MHz, prescaler 1024:
+    tick = 64µs
+    Max period = 65536 × 64µs = 4,194,304µs = 4194ms ≈ 4.194 seconds
+    OCR1A = (TIMER1_PERIOD_MILLSEC * 1000 / 64) - 1
+          = (TIMER1_PERIOD_MILLSEC * 125 / 8) - 1
+    */
+      uint16_t ocr = (uint16_t)(((uint32_t)TIMER1_PERIOD_MILLSEC * 125u) / 8u) - 1u;
+      uint8_t savedSREG = SREG;
+      cli();
+      TCCR1A = 0;
+      TCCR1B = 0;        // prescaler bits cleared — timer stopped
+      TCNT1  = 0;        // clear counter while stopped
+      OCR1A  = ocr;
+      TCCR1B |= (1 << WGM12);   // CTC mode
+      // ── No prescaler bits written — timer remains stopped ──
+      TIMSK1 &= ~(1 << OCIE1A); // disable compare match interrupt
+      SREG = savedSREG; //sei();
   }
 
-  void enableTimer1_Int(){
-    TCNT1  = 0; //initialize counter value to 0
-    TIMSK1 |= (1 << OCIE1A); // enable timer1 compare interrupt
+  // ─── Timer1 Enable ────────────────────────────────────────────────────────────
+  void enableTimer1() {
+      uint8_t savedSREG = SREG;
+      cli();
+      TCNT1  = 0;                                                // reset counter before starting
+      TCCR1B |= (1 << CS12) | (1 << CS10);                      // prescaler 1024 — timer starts
+      TIMSK1 |= (1 << OCIE1A);                                  // enable compare match interrupt
+      SREG = savedSREG; //sei();
   }
 
-  void disableTimer1_Int(){
-    TIMSK1 &= ~(1 << OCIE1A); // disable timer1 interrupt
+  // ─── Timer1 Disable ───────────────────────────────────────────────────────────
+  void disableTimer1() {
+      uint8_t savedSREG = SREG;
+      cli();
+      TCCR1B &= ~((1 << CS12) | (1 << CS10));                   // clear prescaler — timer stops
+      TIMSK1 &= ~(1 << OCIE1A);                                 // disable compare match interrupt
+      TCNT1   = 0;                                              // clear counter while stopped
+      SREG = savedSREG; //sei();
   }
+
+  // ─── Timer2 Setup (initializes but leaves disabled) ─────────────────────────
+  // Period range: 1ms to 16ms (prescaler fixed at 1024, 16MHz)
+  // TIMER2_PERIOD_MILLSEC: uint8_t — whole milliseconds only (1 to 16)
+  void setupTimer2() {
+    // At 16MHz, prescaler 1024:
+    // tick = 64µs
+    // OCR2A = (TIMER2_PERIOD_MILLSEC * 1000µs / 64µs) - 1
+    //       = (TIMER2_PERIOD_MILLSEC * 15.625) - 1
+    // integer approximation: 1000/64 = 125/8
+    // so: OCR2A = (TIMER2_PERIOD_MILLSEC * 125 / 8) - 1
+      uint8_t ocr = (uint8_t)(((uint16_t)TIMER2_PERIOD_MILLSEC * 125u) / 8u) - 1u;
+      uint8_t savedSREG = SREG;
+      cli();
+      TCCR2A = 0;
+      TCCR2B = 0;        // prescaler bits cleared — timer stopped
+      TCNT2  = 0;        // clear counter while stopped
+      OCR2A  = ocr;
+      TCCR2A |= (1 << WGM21);   // CTC mode
+      // ── No prescaler bits written — timer remains stopped ──
+      TIMSK2 &= ~(1 << OCIE2A); // disable compare match interrupt
+      SREG = savedSREG; //sei();
+  }
+
+// ─── Timer2 Enable ────────────────────────────────────────────────────────────
+void enableTimer2() {
+    uint8_t savedSREG = SREG;
+    cli();
+    TCNT2  = 0;                                                // reset counter before starting
+    TCCR2B |= (1 << CS22) | (1 << CS21) | (1 << CS20);       // prescaler 1024 — timer starts
+    TIMSK2 |= (1 << OCIE2A);                                  // enable compare match interrupt
+    SREG = savedSREG; //sei();
+}
+
+// ─── Timer2 Disable ───────────────────────────────────────────────────────────
+void disableTimer2() {
+    uint8_t savedSREG = SREG;
+    cli();
+    TCCR2B &= ~((1 << CS22) | (1 << CS21) | (1 << CS20));    // clear prescaler — timer stops
+    TIMSK2 &= ~(1 << OCIE2A);                                 // disable compare match interrupt
+    TCNT2   = 0;                                              // clear counter while stopped
+    SREG = savedSREG; //sei();
+}
 
   // -------------- EEPROM related functions ---------------
   bool erase_eeprom_if_req(int addrValStr){
