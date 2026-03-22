@@ -25,9 +25,10 @@ class Ticks // depends on Timer1 ISR
 
   public:
     Ticks(uint32_t tikPeriodMilSec);
-    bool tick_Gen_Run(); // to be kept inside ISR. If tick generated during that ISR iteration, gives true, else gives false.
-    bool tick_Utilize(); // to be kept outside ISR. Gives true for onetime, after tick generated.
-    void force_Gen_Tick();
+    bool runTickGen(); // to be kept inside ISR. If tick generated during that ISR iteration, gives true, else gives false.
+    bool tickUtilize(); // to be kept outside ISR. Gives true for onetime, after tick generated.
+    void genTickNow();
+    void rstTickGen();
 };
 
 class CircularCounter // Doesn't depends on Timer1 ISR. It can be used with or without Ticks class 

@@ -6,7 +6,7 @@
     _cntMax = tikPeriodMillis/TIMER1_PERIOD_MILLIS;
     _cnt = 0; _tickGenerated = false;
   }
-  bool Ticks::tick_Gen_Run(){
+  bool Ticks::runTickGen(){
     _cnt++;
     if(_cnt >= _cntMax){
       _cnt = 0;
@@ -17,7 +17,7 @@
       return false;
     }
   }
-  bool Ticks::tick_Utilize(){
+  bool Ticks::tickUtilize(){
     if(_tickGenerated){
       _tickGenerated = false;
       return true;
@@ -26,9 +26,12 @@
       return false;
     }
   }
-  void Ticks::force_Gen_Tick(){
-    _tickGenerated = true;
+  void Ticks::genTickNow(){
+    _cnt = _cntMax - 1;
+  }
+  void Ticks::rstTickGen(){
     _cnt = 0;
+    _tickGenerated = false;
   }
 
   // Buzzer class implementations
