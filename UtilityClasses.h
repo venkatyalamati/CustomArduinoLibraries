@@ -1,8 +1,9 @@
 #pragma once
 #include <Arduino.h>
 #include <EEPROM.h>
-#include "GlobalConstants.h" // include here only to use this in other projects
-
+#include <Ucglib.h>
+constexpr uint16_t TIMER1_PERIOD_MILLIS = 100; // constexpr is better than const for compile-time constants
+constexpr uint16_t TIMER2_PERIOD_MILLIS = 10;
 class PreemptiveOnOff{ // Depends on Timer1 ISR. It is designed to use without Ticks class
   private:
     uint16_t _tikCnt, _tikCntOn, _tikCntMax;
@@ -47,7 +48,8 @@ class Buzzer{ // depends on Timer1 ISR
     uint16_t _onTimeCntMax, _onTimeCnt;
     bool _isOn; byte _buzzerPin;
   public:
-    Buzzer(byte buzzerPin);
+    Buzzer(uint8_t buzzerPin);
+    void begin();
     void turnOn(byte beepLength);
     void timedTurnOff();
 };
@@ -90,6 +92,15 @@ class BinSemaphore{
     bool take();
 };
 
+class ButtonReadConventional{
+  private:
+  static void (*onPressCallback)(uint8_t);   // store function pointer
+  public:
+  static void setCallback(void (*funcPtr)(uint8_t));
+  static void readButton(uint8_t pinNum);
+  static void readButtonLongPress(uint8_t pinNum);
+};
+
 class ButtonMillisBased {
 private:
     uint8_t pin;
@@ -123,6 +134,8 @@ public:
 };
 
 class LevelSensor{
+  private:
+    static constexpr uint8_t NUM_SAMPLES = 6;
   public:
     int16_t addrEmptyVal, addrFullVal, emptyMarkVal, fullMarkVal; uint8_t sensorPin;
     LevelSensor(uint8_t sensorPin, int16_t addrEEPROM);
@@ -138,11 +151,57 @@ class ShiftRegisterController {
   public:
     ShiftRegisterController(uint8_t OE_Pin, uint8_t latchPin, uint8_t dataPin, uint8_t clkPin);
     void doStartUpActions();
-    void updateOutputs(const uint8_t DO_StatusArr[]);
+    void updateOutputs(const uint8_t* DO_StatusArr);
     void disableOutput();
     void enableOutput();
 
   private:
     uint8_t _OE_Pin, _latchPin, _dataPin, _clkPin;
     uint8_t _dataByteDO; bool _outputEnabled;
+};
+
+class TFTDisplay{
+  private:
+    static constexpr uint8_t CHAR_BUFF_SIZE = 17;
+    Ucglib_ST7735_18x128x160_HWSPI ucg;
+  public:
+    char charBuffer[CHAR_BUFF_SIZE];
+    TFTDisplay(uint8_t cdPin, uint8_t rstPin);          // constructor — wires up ucg pins
+    void begin();
+    void clearScreen();
+    void setSmallFont();
+    void setBigFont();
+    void textPrintSmallFont(float linePos);   // linePos 1,2,3...
+    void textPrintBigFont(float linePos);
+    void clearCharBuffer();
+};
+
+// -------------- TimersFunctions class ---------------
+class ArduinoTimersFunctions{
+  public:
+  // ─── Timer1 Setup (initializes but leaves disabled) ──────────────────────────
+  // Period range: 1ms to 4194ms (prescaler fixed at 1024, 16MHz)
+  static void setupTimer1();
+  static void enableTimer1();
+  static void disableTimer1();
+  // ─── Timer2 Setup (initializes but leaves disabled) ─────────────────────────
+  // Period range: 1ms to 16ms (prescaler fixed at 1024, 16MHz)
+  static void setupTimer2();
+  static void enableTimer2();
+  static void disableTimer2();
+};
+
+class EEPROM_Functions{
+  public:
+  static bool erase_eeprom_if_req(int addrValStr);
+};
+
+class DecimalToCharFunctions{
+  private:
+  static constexpr uint8_t SIZE_TEMP_STR = 7; // must be > fullDcmlLen
+  public:
+  static void insertFloatVal_intoCharArray(char *charArr, uint8_t startPos, uint8_t fullDcmlLen, uint8_t numDcmlPts, float dcmlVal, bool dispPosSign);
+  static void insertUintVal_intoCharArray(char *charArr, uint8_t startPos, uint8_t fullDcmlLen, uint32_t dcmlVal);
+  static void insertIntVal_intoCharArray(char *charArr, uint8_t startPos, uint8_t fullDcmlLen, int32_t dcmlVal, bool dispPosSign);
+  static float floatFromCharArray(const char *str);
 };
