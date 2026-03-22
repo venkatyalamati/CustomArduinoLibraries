@@ -78,9 +78,9 @@ class NonBlockingTimer{ // Works based on Timer1 ISR. Doesn't use millis(). Max 
     bool isStopped();
     void stop();
     void forceExpire();
-    uint32_t elapsed();
-    uint32_t remaining();
-    uint32_t timeOutVal();
+    uint32_t elapsedMillis();
+    uint32_t remainingMillis();
+    uint32_t timeOutMillis();
     uint8_t percentComplete();
 };
 

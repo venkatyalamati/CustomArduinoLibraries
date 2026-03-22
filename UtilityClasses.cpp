@@ -186,13 +186,13 @@
   void NonBlockingTimer::forceExpire(){
     _timerState = TimerStates::expired;
   }
-  uint32_t NonBlockingTimer::elapsed(){
+  uint32_t NonBlockingTimer::elapsedMillis(){
     if(_timerState == TimerStates::running)
       return static_cast<uint32_t>(_timeOutCnt) * static_cast<uint32_t>(TIMER1_PERIOD_MILLIS);
     else
       return 0;
   }
-  uint32_t NonBlockingTimer::remaining(){
+  uint32_t NonBlockingTimer::remainingMillis(){
     if(_timerMode != TimerModes::infRunning && _timerState == TimerStates::running){
       return static_cast<uint32_t>(_timeOutCntMax - _timeOutCnt) * static_cast<uint32_t>(TIMER1_PERIOD_MILLIS);
     }
@@ -200,7 +200,7 @@
       return 0;
     }
   }
-  uint32_t NonBlockingTimer::timeOutVal(){
+  uint32_t NonBlockingTimer::timeOutMillis(){
     if(_timerMode != TimerModes::infRunning && _timerState != TimerStates::stopped)
       return static_cast<uint32_t>(_timeOutCntMax) * static_cast<uint32_t>(TIMER1_PERIOD_MILLIS);
     else
